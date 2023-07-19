@@ -3,7 +3,7 @@
 
 # <p align="center">Utilisation service windows IA</p>
   
-# Coucou BH-techno👋
+# Coucou 👋
 
 Ce readme a pour but d'expliquer l'utilisation du service windows créé par Yann Terrom en python.
 
