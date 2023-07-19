@@ -1,0 +1,12 @@
+{
+  "PATH": {
+    "model": "C:/Users/vincent/Documents/yann/checkReaderPython/model/model_kdo.h5"
+  }, 
+  "SERVICE_INFO" : {
+      "name" : "test ultime",
+      "display_name" : "test ultime"
+  },
+  "ALLOWED_IP" :  ["127.0.0.1", "::1", "192.168.1.100", "192.168.1.101"],
+    "HOST" : "0.0.0.0", 
+    "PORT" : 5000
+}
