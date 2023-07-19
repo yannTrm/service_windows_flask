@@ -2,7 +2,7 @@
   
 ## Coucou👋
 
-Ce code a été rédigé en juillet 2022 par Yann Terrom avec l'aide de Vincent Howard et Sylvain Ferrari. L'idée est d'intégrer une tête de lecture dans l'activex. Cette tête de lecture intervient dans le cas d'une mauvaise lecture OCR. La technique utilisée est une reconnaissance image par IA (reséau convolutif LeNet-4). Le modèle est entrainé, la partie entrainement est expliqué dans le projet "reconnaissance_ia". Ce readme a pour but d'expliquer le code source python qui gère le service windows. Bonne lecture ;)
+Ce code a été rédigé en juillet 2022 par Yann Terrom. L'idée est d'intégrer une tête de lecture dans l'activex. Cette tête de lecture intervient dans le cas d'une mauvaise lecture OCR. La technique utilisée est une reconnaissance image par IA (reséau convolutif LeNet-4). Le modèle est entrainé, la partie entrainement est expliqué dans le projet "reconnaissance_ia". Ce readme a pour but d'expliquer le code source python qui gère le service windows. Bonne lecture ;)
 
 ----------
 
