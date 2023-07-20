@@ -241,11 +241,8 @@ if __name__ == '__main__':
 Jusque la nous avons déclaré tout le code nécessaire, c'est ici que nous l'appelons. Cette partie du code ne devrait pas être à modifer, c'est un code très générique.
 
 ----------
-Mon github est dispo sous cette adresse `https://github.com/yannTrm` , n'hesitez pas à apporter des modifications et des améliorations au code ;)
 
+Pour créer le fichier exe utiliser la commande :
 
+`pyinstaller --hiddenimport win32timezone -F service.py`
         
-
-
-
-
