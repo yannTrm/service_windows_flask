@@ -10,7 +10,9 @@ from numpy import (stack, count_nonzero, pad, delete, argmax, max as maxi, array
 from flask import Flask, request, jsonify
 
 import win32serviceutil, win32service , win32event, servicemanager, socket 
-import sys, os, json, signal, requests
+import sys, os, json, signal, requests, logging, time
+
+
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 # Function
@@ -38,6 +40,12 @@ HOST = data["HOST"]
 FORMAT_54 = [0, 4, 28, 31, 38, 43, 50, 53]
 FORMAT_53 = [0, 4, 28, 31, 38, 43, 50, 52]
 
+# Configuration des paramètres de journalisation
+LOG_FILE = os.path.join(MAIN_PATH, "app.log")
+logging.basicConfig(level=logging.DEBUG, filename=LOG_FILE, filemode='a',
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 # Class
@@ -53,6 +61,7 @@ class AppServerSvc(win32serviceutil.ServiceFramework):
 
     def SvcStop(self):
         requests.post('http://localhost:5000/shutdown')
+        time.sleep(1)
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
         win32event.SetEvent(self.hWaitStop)
         self.is_running = False
@@ -61,7 +70,15 @@ class AppServerSvc(win32serviceutil.ServiceFramework):
         servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,
                               servicemanager.PYS_SERVICE_STARTED,
                               (self._svc_name_, ''))
-        self.main()
+        servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,
+                      servicemanager.PYS_SERVICE_STARTED,
+                      (self._svc_name_, ''))
+        try:
+            self.main()  # Tentative de démarrage du service
+        except Exception as e:
+            logging.error(f"Service failed to start: {str(e)}")  # Log en cas d'échec
+        
+             
 
     def main(self):
         serveur = Serveur()
@@ -76,23 +93,46 @@ class Serveur:
     host = None
     
     def __init__(self):
-        self.load_params()
-        self.setup_routes()
-        self.app.run(host= self.host, port = self.port)
+        logging.info("Initializing the server...")  # Log d'initialisation du serveur
+        try:
+            self.load_params()
+            self.setup_routes()
+            self.app.run(host=self.host, port=self.port)
+        except Exception as e:
+            logging.error(f"Server initialization failed: {str(e)}")  # Log d'erreur en cas d'échec
       
     def load_params(self):
-        self.load_allowed_ips()
-        self.load_host()
-        self.load_model()
-        self.load_port()
+        logging.debug("Loading parameters...")
+        try:
+            self.load_allowed_ips()
+            self.load_host()
+            self.load_model()
+            self.load_port()
+            logging.debug("Parameters loaded.")
+        except Exception as e:
+            logging.error(f"Loading parameters failed: {str(e)}")  # Log d'erreur en cas d'échec
+        
     def load_allowed_ips(self):
-        Serveur.allowed_ips = ALLOWED_IP
+        try:
+            Serveur.allowed_ips = ALLOWED_IP
+            logging.info(f"Allowed IPs: {Serveur.allowed_ips}")
+        except Exception as e:
+            logging.error(f"Loading allowed IPs failed: {str(e)}")  # Log d'erreur en cas d'échec
+
     def load_port(self):
-        Serveur.port = PORT
+        try:
+            Serveur.port = PORT
+            logging.info(f"Port: {Serveur.port}")
+        except Exception as e:
+            logging.error(f"Loading port failed: {str(e)}")  # Log d'erreur en cas d'échec
+
     def load_host(self):
-        Serveur.host = HOST
-    
-    
+        try:
+            Serveur.host = HOST
+            logging.info(f"Host: {Serveur.host}")
+        except Exception as e:
+            logging.error(f"Loading host failed: {str(e)}")  # Log d'erreur en cas d'échec
+
     def setup_routes(self):
         def is_allowed_request():
             return request.remote_addr in Serveur.allowed_ips
@@ -108,16 +148,40 @@ class Serveur:
 
         @Serveur.app.route('/tete_yann', methods=['POST'])
         def tete_yann():
+            if Serveur.model is None:
+                logging.error("Le modèle n'est pas chargé.")  # Log d'erreur pour le modèle non chargé
+                return 'Le modèle n\'est pas chargé.', 500  # Réponse indiquant que le modèle n'est pas chargé
+
             if 'image' not in request.json:
-                return 'Aucune image trouvée'
+                logging.error("Aucune image trouvée")
+                return 'Aucune image trouvée', 400
 
             image = array(json.loads(request.json['image']), dtype=uint8)
-            numbers = process_image(image)
-
-            pred = predict(Serveur.model, numbers)
-            data_serializable = [arr.tolist() for arr in pred]
-
-            return jsonify(data_serializable)
+            if image.size == 0:
+                logging.error("L'image est vide")
+                return 'L\'image est vide', 400
+            
+            try:
+                numbers = process_image(image)
+                if numbers is None:
+                    logging.debug("Erreur lors de la segmentation de l'image. Vérifier la qualité de l'image envoyée (bruit, code barre, qualité...)")
+                    return "La prédiction n\'a pas aboutie", 400
+                try:
+                    pred = predict(Serveur.model, numbers)
+                    try:
+                        data_serializable = [arr.tolist() for arr in pred]
+                        logging.info("Succès, prédiction effectuée et envoyée")
+                        return jsonify(data_serializable)
+                    
+                    except Exception as e:
+                        logging.error("Erreur lors de la sérialisation des données prédites : %s", str(e))
+                        return 'Erreur lors de la sérialisation des données prédites', 500
+                except Exception as e:
+                    logging.error("Erreur lors de la prédiction : %s", str(e))
+                    return 'Erreur lors de la prédiction', 500
+            except Exception as e:
+                logging.error("Erreur lors du traitement de l'image : %s", str(e))
+                return 'Erreur lors du traitement de l\'image', 500
 
         @Serveur.app.route('/shutdown', methods=['POST'])
         def shutdown():
@@ -125,8 +189,14 @@ class Serveur:
             return 'Server shutting down...'
 
     def load_model(self):
-        Serveur.model = tf_load_model(PATH_MODEL)
-    
+        try:
+            Serveur.model = tf_load_model(PATH_MODEL)
+            logging.info("Model loaded.")
+        except Exception as e:
+            Serveur.model = None
+            logging.error(f"Model loading failed: {str(e)}")  # Log d'erreur en cas d'échec
+
+
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 # process images
@@ -158,8 +228,10 @@ def process_image(image):
     images_segmented = segment(image)
     if images_segmented.shape[0] == 54:
         number_to_predict = delete(images_segmented, FORMAT_54, axis = 0)
-    else :
+    elif images_segmented.shape[0] == 53:
         number_to_predict = delete(images_segmented, FORMAT_53, axis = 0)
+    else :
+        return None
     return number_to_predict
 
 def predict(model, data):
@@ -176,12 +248,22 @@ def segment(image):
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------ 
 if __name__ == '__main__':
+    logging.info("Starting the application...")  # Log de démarrage de l'application
+
     if len(sys.argv) == 1:
+        logging.info("Running as a Windows service.")
         servicemanager.Initialize()
         servicemanager.PrepareToHostSingle(AppServerSvc)
-        servicemanager.StartServiceCtrlDispatcher()
+        
+        try:
+            servicemanager.StartServiceCtrlDispatcher()
+        except Exception as e:
+            logging.error(f"Error starting service dispatcher: {str(e)}")
     else:
+        logging.info("Running as a console application.")
         win32serviceutil.HandleCommandLine(AppServerSvc)
+    
+    logging.info("Application finished.")
              
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
